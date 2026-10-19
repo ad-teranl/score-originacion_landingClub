@@ -1,0 +1,17 @@
+# Publicación en Render (plan gratuito). Render lee este archivo al conectar el repositorio.
+services:
+  - type: web
+    name: score-originacion
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: streamlit run app/app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    healthCheckPath: /_stcore/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.9
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"
