@@ -1,0 +1,11 @@
+id_solicitud,revenue,dti_n,loan_amnt,fico_n,emp_length,purpose,home_ownership_n,addr_state,nota_simulacion
+SOL-0001,150700.0,21.02,32325,671.0,3 years,home_improvement,OWN,PA,normal
+SOL-0002,62700.0,13.63,13775,815.0,1 year,debt_consolidation,RENT,CA,normal
+SOL-0003,93600.0,22.46,20550,689.0,10+ years,debt_consolidation,MORTGAGE,TX,normal
+SOL-0004,89500.0,10.39,16775,683.0,5 years,home_improvement,MORTGAGE,VA,normal
+SOL-0005,50600.0,54.89,11925,728.0,9 years,credit_card,RENT,FL,raro: dti muy alto
+SOL-0006,53200.0,16.83,9075,663.0,10+ years,credit_card,RENT,TX,normal
+SOL-0007,57100.0,21.87,7675,746.0,5 years,debt_consolidation,MORTGAGE,DE,normal
+SOL-0008,25400.0,28.8,1550,663.0,1 year,credit_card,RENT,TX,normal
+SOL-0009,78600.0,16.95,14350,675.0,10+ years,credit_card,RENT,TX,normal
+SOL-0010,29900.0,23.14,9350,672.0,7 years,debt_consolidation,RENT,FL,normal

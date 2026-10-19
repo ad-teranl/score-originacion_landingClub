@@ -1,0 +1,83 @@
+# Configuración única del despliegue del score de originación (XGBoost E3).
+# Todo número que usa la app sale de aquí; el código no tiene umbrales escritos.
+# Los valores vienen de los cuadernos 2, 3, 4 y 5 (no se reentrena nada).
+
+proyecto:
+  nombre: Score de originación PD
+  modelo: XGBoost
+  escenario: E3
+  version_modelo: "2026-10-18"
+
+base:
+  archivo: base_clientes           # 1,347,681 solicitudes ya puntuadas (se calcula con scripts/construir_base.py)
+  columna_id: id                   # en una entidad real: cedula
+
+rutas:
+  modelos: models
+  ejemplos: data/ejemplos
+  reportes: reports
+
+artefactos:
+  pipeline_woe: pipeline_woe.pkl          # cuaderno 3: razón préstamo/ingreso + WoE
+  objetos_ingenieria: objetos_ingenieria.pkl  # cuaderno 3: frecuencias y MinMax de la matriz compacta
+  modelo_final: modelo_final.pkl          # cuaderno 4: XGBoost + calibrador sigmoide + umbral
+  logistica: modelo_Logistica_E3.pkl      # cuaderno 4: base de la tarjeta de puntos
+  tarjeta_puntos: tarjeta_puntos.parquet
+  cadena: cadena_E3.pkl                   # limpieza + préstamo/ingreso + WoE, un solo pipeline
+  cadena_nosup: cadena_nosup_E3.pkl       # limpieza + préstamo/ingreso + MinMax compacta
+  catboost: modelo_CatBoost_E3.pkl        # modelo retador
+  calibrador_cat: calibrador_CatBoost.pkl # sigmoide + umbral F1 de CatBoost
+  tabla_woe: tabla_woe.parquet            # tramos y tasa de default del entrenamiento
+  referencia_nosup: referencia_nosup.json # p90, p99, histogramas y segmentos GMM
+  referencia_cartera: referencia_cartera.json
+  isolation_forest: modelo_IF_E3.pkl      # cuaderno 5
+  gmm: modelo_GMM_E3.pkl
+  ecod: busqueda_ECOD_E3.pkl
+
+# Cuaderno 2: tratamiento del dato crudo (aprendido solo con entrenamiento)
+tratamiento:
+  revenue_tope_inferior: 18200.0
+  revenue_tope_superior: 240000.0
+  dti_centinela: 100        # dti_n > 100 se considera dato inválido
+  dti_mediana: 16.42        # imputación de dti faltante o inválido
+  etiqueta_rara: otros
+  niveles_validos:
+    purpose: [car, credit_card, debt_consolidation, home_improvement, house, major_purchase,
+              medical, moving, other, small_business, vacation, wedding]
+    home_ownership_n: [MORTGAGE, OWN, RENT]
+    addr_state: [AL, AR, AZ, CA, CO, CT, FL, GA, HI, IL, IN, KS, KY, LA, MA, MD, MI, MN, MO,
+                 NC, NJ, NM, NV, NY, OH, OK, OR, PA, SC, TN, TX, UT, VA, WA, WI, WV]
+  emp_length_niveles: ["< 1 year", "1 year", "2 years", "3 years", "4 years", "5 years",
+                       "6 years", "7 years", "8 years", "9 years", "10+ years", "NI"]
+
+# Cuaderno 4: decisión supervisada
+decision:
+  umbral_f1: 0.185          # PD calibrada >= umbral => alerta (F1 máximo en validación)
+  margen: 0.06              # supuesto declarado
+  lgd: 0.60                 # supuesto declarado
+  # corte de costo = margen / (margen + lgd) = 9.1 %; se calcula en el código
+  cutoff_defecto: costo        # f1 (umbral 18.5 %) o costo (margen/(margen+LGD))
+  top_criticos: 30          # filas de la pestaña de vigilancia
+  grilla_margen: [0.04, 0.06, 0.08]
+  grilla_lgd: [0.50, 0.60, 0.70]
+
+# Tarjeta de puntos (regresión logística E3)
+tarjeta:
+  puntos_base: 600          # 600 puntos = 20 buenos por cada malo
+  odds_base: 20
+  pdo: 20
+
+# Cuaderno 5: gobernanza (no predicen PD; marcan solicitudes para revisión)
+gobernanza:
+  percentil_bandera: 99
+  cortes_bandera:           # percentil 99 del puntaje en entrenamiento
+    isolation_forest: 0.6093678243068233
+    gmm: 2.9434452848295805
+    ecod: 18.506147731566397
+  dti_max_entrenamiento: 34.99   # por encima: fuera del soporte del modelo
+
+# Referencias del cuaderno 4 para el control de la puesta en marcha
+referencia:
+  auc_validacion: 0.6584240600419691
+  pd_media_validacion: 0.19124886
+  tasa_default_validacion: 0.1912

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+outputs/
+.hydra/
+reports/*.csv
+!data/ejemplos/*.csv
+# los .pkl de models/ SÍ se suben: la app en la nube los necesita
+.streamlit/secrets.toml
+*.log
+.DS_Store
