@@ -137,13 +137,40 @@ st.markdown(_css + (OSC if OSCURO else "") + "</style>", unsafe_allow_html=True)
 def recursos():
     cfg = cargar_config()
     art = cargar_artefactos(cfg)
-    import ctypes, gc
+    import ctypes, gc, glob
+    import pyarrow as pa
     import pyarrow.parquet as pq
-    tabla = pq.read_table(RAIZ / cfg["rutas"]["modelos"] / cfg["base"]["archivo"], use_threads=False)
-    base = tabla.to_pandas(self_destruct=True, split_blocks=True)
-    del tabla
-    for c, d in [("id", "int32"), ("revenue", "float32"), ("dti_n", "float32"), ("loan_amnt", "int32"), ("fico_n", "float32")]:
-        base[c] = base[c].astype(d)      # las PD se quedan en float64: los decimales importan
+    pa.set_memory_pool(pa.system_memory_pool())   # el pool por defecto de Arrow retiene cientos de MB; el del sistema los devuelve
+    # La base se lee columna por columna y por parte, directo a arreglos compactos (sin DataFrame intermedio):
+    # así el pico de memoria es casi el tamaño final de la base (~80 MB) y no varias veces eso.
+    archivos = sorted(glob.glob(str(RAIZ / cfg["rutas"]["modelos"] / cfg["base"]["archivo"] / "*.parquet")))
+    n_total = sum(pq.ParquetFile(f).metadata.num_rows for f in archivos)
+    tipos = {"n_cliente": "int32", "id": "int32", "revenue": "float32", "dti_n": "float32", "loan_amnt": "int32",
+             "fico_n": "float32", "pd_xgb": "float64", "pd_cat": "float64",   # las PD se quedan en float64: los decimales importan
+             "score_if": "float32", "score_gmm": "float32", "score_ecod": "float32", "seg_gmm": "int8"}
+    texto = ["emp_length", "purpose", "home_ownership_n", "addr_state"]
+    cols = {c: np.empty(n_total, dtype=t) for c, t in tipos.items()}
+    codigos = {c: np.empty(n_total, dtype=np.int8) for c in texto}
+    niveles = {c: {} for c in texto}
+    i = 0
+    for f in archivos:
+        pf = pq.ParquetFile(f)
+        n = pf.metadata.num_rows
+        for c in list(tipos) + texto:
+            v = pf.read(columns=[c], use_threads=False).column(0).combine_chunks()
+            if c in tipos:
+                cols[c][i:i + n] = v.to_numpy(zero_copy_only=False)
+            else:
+                d = v if pa.types.is_dictionary(v.type) else v.dictionary_encode()
+                niv = niveles[c]
+                mapa = np.array([niv.setdefault(x, len(niv)) for x in d.dictionary.to_pylist()], dtype=np.int8)
+                codigos[c][i:i + n] = mapa[d.indices.to_numpy(zero_copy_only=False)]
+            del v
+        i += n
+    for c in texto:
+        cols[c] = pd.Categorical.from_codes(codigos[c], categories=list(niveles[c]))
+    base = pd.DataFrame(cols, copy=False)
+    del cols, codigos
     gc.collect()
     try:
         ctypes.CDLL("libc.so.6").malloc_trim(0)   # devuelve memoria al sistema (Linux/Render)
